@@ -265,8 +265,8 @@ void do_dump(char *saveFile, int fd, SegmentBufInfo *segBufs, int segBufNum, Elf
 void dumpSelfPatch(void){
 
 	// hook our kernel functions
-	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x30EB30];
-	int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x347580);
+	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x3095d0];
+	int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x17f30);
 
 	printfkernel("applying patches\n");
 
@@ -276,10 +276,10 @@ void dumpSelfPatch(void){
 	writeCr0(cr0 & ~X86_CR0_WP);
 
 	// patch allowed to mmap self *thanks to IDC
-	*(uint8_t*)(kernel_base + 0x31EE40) = 0x90; //0x0F
-	*(uint8_t*)(kernel_base + 0x31EE41) = 0xE9; //0x84
-	*(uint8_t*)(kernel_base + 0x31EF98) = 0x90; //0x74
-	*(uint8_t*)(kernel_base + 0x31EF99) = 0x90; //0x0F
+	*(uint8_t*)(kernel_base + 0x143bf2) = 0x90; //0x0F
+	*(uint8_t*)(kernel_base + 0x143BF3) = 0xE9; //0x84
+	*(uint8_t*)(kernel_base + 0x143e0e) = 0x90; //0x74
+	*(uint8_t*)(kernel_base + 0x143e0f) = 0x90; //0x0F
 
 	// restore write protection
 
@@ -292,8 +292,8 @@ void dumpSelfPatch(void){
 void dumpSelfPatchOrig(void){
 
 	// hook our kernel functions
-	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x30EB30];
-		int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x347580);
+	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x3095d0];
+		int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x17f30);
 	printfkernel("restoring kernel\n");
 
 	// Disable write protection
@@ -302,10 +302,10 @@ void dumpSelfPatchOrig(void){
 	writeCr0(cr0 & ~X86_CR0_WP);
 
 	// restore kernel 
-	*(uint8_t*)(kernel_base + 0x31EE40) = 0x0F; //0x0F
-	*(uint8_t*)(kernel_base + 0x31EE41) = 0x84; //0x84
-	*(uint8_t*)(kernel_base + 0x31EF98) = 0x74; //0x74
-	*(uint8_t*)(kernel_base + 0x31EF99) = 0x0F; //0x0F
+	*(uint8_t*)(kernel_base + 0x143bf2) = 0x0F; //0x0F
+	*(uint8_t*)(kernel_base + 0x143bf3) = 0x84; //0x84
+	*(uint8_t*)(kernel_base + 0x143e0e) = 0x74; //0x74
+	*(uint8_t*)(kernel_base + 0x143e0f) = 0x0F; //0x0F
 
 	// restore write protection
 
@@ -367,15 +367,15 @@ int kpayload(struct thread *td){
 	fd = td->td_proc->p_fd;
 	cred = td->td_proc->p_ucred;
 
-	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x30EB30];
+	void* kernel_base = &((uint8_t*)__readmsr(0xC0000082))[-0x3095d0];
 	uint8_t* kernel_ptr = (uint8_t*)kernel_base;
-	void** got_prison0 =   (void**)&kernel_ptr[0xF26010];
-	void** got_rootvnode = (void**)&kernel_ptr[0x206D250];
+	void** got_prison0 =   (void**)&kernel_ptr[0x10399B0];
+	void** got_rootvnode = (void**)&kernel_ptr[0x21AFA30];
 
 	// resolve kernel functions
 
-	int (*copyout)(const void *kaddr, void *uaddr, size_t len) = (void *)(kernel_base + 0x286d70);
-	int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x347580);
+	int (*copyout)(const void *kaddr, void *uaddr, size_t len) = (void *)(kernel_base + 0x14a7b0);
+	int (*printfkernel)(const char *fmt, ...) = (void *)(kernel_base + 0x17f30);
 
 	cred->cr_uid = 0;
 	cred->cr_ruid = 0;
@@ -400,17 +400,15 @@ int kpayload(struct thread *td){
 	uint64_t *sceProcCap = (uint64_t *)(((char *)td_ucred) + 104);
 	*sceProcCap = 0xffffffffffffffff; // Sce Process
 
-	uint16_t *securityFlags = (uint64_t *)(kernel_base+0x2001516);
+	uint16_t *securityFlags = (uint64_t *)(kernel_base+0x1B6D086);
 	*securityFlags = *securityFlags & ~(1 << 15);
 
 	// specters debug settings patchs
 
-	*(char *)(kernel_base + 0x186b0a0) = 0; 
-	*(char *)(kernel_base + 0x2001516) |= 0x14;
-	*(char *)(kernel_base + 0x2001539) |= 1;
-	*(char *)(kernel_base + 0x2001539) |= 2;
-	*(char *)(kernel_base + 0x200153A) |= 1;
-	*(char *)(kernel_base + 0x2001558) |= 1;	
+	*(char *)(kernel_base + 0x1B6D086) |= 0x14;
+	*(char *)(kernel_base + 0x1B6D0A9) |= 0x3;
+	*(char *)(kernel_base + 0x1B6D0AA) |= 0x1;
+	*(char *)(kernel_base + 0x1B6D0C8) |= 0x1;
 
 	// Disable write protection
 
@@ -419,15 +417,17 @@ int kpayload(struct thread *td){
 
 	// debug menu full patches thanks to sealab
 
-	*(uint32_t *)(kernel_base + 0x4CECB7) = 0;
-	*(uint32_t *)(kernel_base + 0x4CFB9B) = 0;
+	*(uint32_t *)(kernel_base + 0x4d70f7) = 0;
+	*(uint32_t *)(kernel_base + 0x4d7f81) = 0;
 
 	// Target ID Patches :)
 
+	// XXX: TODO
+	/*
 	*(uint16_t *)(kernel_base + 0x1FE59E4) = 0x8101;
 	*(uint16_t *)(kernel_base + 0X1FE5A2C) = 0x8101;
 	*(uint16_t *)(kernel_base + 0x200151C) = 0x8101;
-
+	*/
 	// restore write protection
 
 	writeCr0(cr0);
@@ -455,7 +455,7 @@ int _main(struct thread *td){
 
 	server.sin_len = sizeof(server);
 	server.sin_family = AF_INET;
-	server.sin_addr.s_addr = IP(192, 168, 1, 64);
+	server.sin_addr.s_addr = IP(192, 168, 5, 12);
 	server.sin_port = sceNetHtons(9023);
 	memset(server.sin_zero, 0, sizeof(server.sin_zero));
 	sock = sceNetSocket("debug", AF_INET, SOCK_STREAM, 0);
